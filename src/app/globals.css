@@ -1,26 +1,185 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
+/*
+  Operon brand tokens — ported directly from the four dashboard mockups
+  (operon-customer-dashboard-v2/v3.jsx, operon-operations-dashboard-v2.jsx,
+  operon-org-admin-dashboard.jsx). These are the source of truth; do not
+  redesign the palette here.
+*/
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+
+  /* Raw brand palette — for status badges / accents that reference a
+     specific brand hue directly rather than a semantic role. */
+  --color-pine: var(--pine);
+  --color-pine-deep: var(--pine-deep);
+  --color-pine-tint: var(--pine-tint);
+  --color-brass: var(--brass);
+  --color-brass-tint: var(--brass-tint);
+  --color-sage: var(--sage);
+  --color-mist: var(--mist);
+  --color-rust: var(--rust);
+  --color-rust-tint: var(--rust-tint);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-paper: var(--paper);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  /* Brand palette */
+  --ink: #1c2320;
+  --ink-soft: #4b534e;
+  --paper: #f5f3ec;
+  --pine: #2b5d4c;
+  --pine-deep: #1e4238;
+  --pine-tint: #e4ede8;
+  --brass: #b07e35;
+  --brass-tint: #f3e6cc;
+  --sage: #8b9186;
+  --mist: #e6e2d6;
+  --rust: #a65b44;
+  --rust-tint: #f3e3dd;
+
+  /* Semantic tokens (shadcn contract) mapped onto the brand palette */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: #fffefb;
+  --card-foreground: var(--ink);
+  --popover: #fffefb;
+  --popover-foreground: var(--ink);
+  --primary: var(--pine);
+  --primary-foreground: #fffefb;
+  --secondary: var(--pine-tint);
+  --secondary-foreground: var(--pine-deep);
+  --muted: var(--mist);
+  --muted-foreground: var(--sage);
+  --accent: var(--brass-tint);
+  --accent-foreground: #7a551f;
+  --destructive: var(--rust);
+  --destructive-foreground: #fffefb;
+  --border: var(--mist);
+  --input: var(--mist);
+  --ring: var(--pine);
+  --radius: 0.875rem;
+
+  /* Sidebar — the Operations Workspace uses a dark sidebar (see
+     operon-operations-dashboard-v2.jsx); Customer/Org portals don't use
+     a sidebar, so these only apply where the sidebar component is used. */
+  --sidebar: #182420;
+  --sidebar-foreground: #a9b6ad;
+  --sidebar-primary: var(--brass);
+  --sidebar-primary-foreground: #f0dcb6;
+  --sidebar-accent: rgba(176, 126, 53, 0.18);
+  --sidebar-accent-foreground: #f0dcb6;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: var(--brass);
+}
+
+/*
+  No dark-mode palette exists in the source mockups yet — rather than
+  invent one, .dark currently mirrors the light tokens so the app doesn't
+  break under an OS-level dark preference. Revisit once a dark design
+  actually exists.
+*/
+.dark {
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: #fffefb;
+  --card-foreground: var(--ink);
+  --popover: #fffefb;
+  --popover-foreground: var(--ink);
+  --primary: var(--pine);
+  --primary-foreground: #fffefb;
+  --secondary: var(--pine-tint);
+  --secondary-foreground: var(--pine-deep);
+  --muted: var(--mist);
+  --muted-foreground: var(--sage);
+  --accent: var(--brass-tint);
+  --accent-foreground: #7a551f;
+  --destructive: var(--rust);
+  --destructive-foreground: #fffefb;
+  --border: var(--mist);
+  --input: var(--mist);
+  --ring: var(--pine);
+  --sidebar: #182420;
+  --sidebar-foreground: #a9b6ad;
+  --sidebar-primary: var(--brass);
+  --sidebar-primary-foreground: #f0dcb6;
+  --sidebar-accent: rgba(176, 126, 53, 0.18);
+  --sidebar-accent-foreground: #f0dcb6;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: var(--brass);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+  .font-display {
+    font-family: var(--font-display), Georgia, serif;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@media (prefers-reduced-motion: reduce) {
+  .operon-pulse-dot {
+    animation: none !important;
+  }
+}
+
+@keyframes operon-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.operon-pulse-dot {
+  animation: operon-breathe 2.6s ease-in-out infinite;
 }

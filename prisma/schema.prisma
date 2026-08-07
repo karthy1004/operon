@@ -1,0 +1,702 @@
+// Operon Phase 1 domain schema.
+// Built directly from operon-docs/05-database-design/05-domain-model.md and
+// operon-docs/04-customer-journey/04-canonical-workflows-and-lifecycles.md —
+// every lifecycle enum below mirrors the canonical states in that document
+// exactly. No entity redefines its own status; state transitions are
+// performed only through the service layer in src/lib/domain, never by
+// direct field writes elsewhere in the app.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums — Roles (02-users/02-personas-and-roles.md Part B)
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  FOUNDER
+  ADMIN
+  OPS_MANAGER
+  OPS_ASSOCIATE
+  CUSTOMER
+  ORG_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+// ---------------------------------------------------------------------------
+// Enums — Canonical lifecycles (04-customer-journey)
+// ---------------------------------------------------------------------------
+
+// §1 Customer Lifecycle
+enum CustomerStatus {
+  LEAD
+  QUALIFIED_LEAD
+  DISCOVERY_CALL_SCHEDULED
+  DISCOVERY_CALL_COMPLETED
+  PROPOSAL_SENT
+  NEGOTIATION
+  PROPOSAL_ACCEPTED
+  PAYMENT_RECEIVED
+  ACCOUNT_CREATED
+  ONBOARDING_STARTED
+  DOCUMENTS_UPLOADED
+  CAREER_PROFILE_COMPLETED
+  TEAM_ASSIGNED
+  SERVICE_ACTIVATED
+  APPLICATIONS_IN_PROGRESS
+  INTERVIEW_PHASE
+  OFFER_RECEIVED
+  SERVICE_COMPLETED
+  RENEWAL
+  ALUMNI
+  LOST
+  CHURNED
+}
+
+// §3 Job Discovery Lifecycle
+enum JobStatus {
+  DISCOVERED
+  SAVED
+  AI_MATCH_SCORE_GENERATED
+  HUMAN_REVIEW
+  ARCHIVED
+  APPROVED_FOR_APPLICATION
+  CONVERTED_TO_APPLICATION
+}
+
+// §4 Application Lifecycle
+enum ApplicationStatus {
+  IDENTIFIED
+  EVALUATED
+  APPROVED_OPPORTUNITY
+  PREPARING
+  INTERNAL_REVIEW
+  WAITING_APPROVAL
+  APPROVED
+  READY_FOR_SUBMISSION
+  SUBMITTED
+  SUBMISSION_VERIFIED
+  TRACKING
+  RECRUITER_RESPONSE
+  ASSESSMENT
+  INTERVIEW
+  OFFER
+  REJECTED
+  CLOSED
+  ARCHIVED
+}
+
+// §6 Approval Engine
+enum ApprovalMode {
+  MODE_A_CUSTOMER_APPROVAL
+  MODE_B_AUTO_SUBMIT
+}
+
+enum ApprovalStatus {
+  NOT_REQUIRED
+  PENDING
+  APPROVED
+  CHANGES_REQUESTED
+}
+
+// §5 Document Lifecycle
+enum DocumentStatus {
+  UPLOADED
+  AI_REVIEW
+  OPERATIONS_REVIEW
+  CUSTOMER_REVIEW
+  APPROVED
+  ACTIVE
+  SUPERSEDED
+  ARCHIVED
+}
+
+enum DocumentType {
+  RESUME
+  COVER_LETTER
+  PORTFOLIO
+  LINKEDIN_EXPORT
+  OTHER
+}
+
+// §8 Task Lifecycle
+enum TaskStatus {
+  CREATED
+  ASSIGNED
+  IN_PROGRESS
+  WAITING
+  COMPLETED
+  VERIFIED
+  ARCHIVED
+}
+
+enum TaskPriority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum TaskType {
+  JOB_SEARCH
+  RESUME_REVIEW
+  APPLICATION_PREPARATION
+  CUSTOMER_FOLLOW_UP
+  INTERVIEW_TRACKING
+  DOCUMENT_COLLECTION
+  AI_REVIEW
+}
+
+// §9 Interview Lifecycle
+enum InterviewStatus {
+  SCHEDULED
+  PREPARATION
+  COMPLETED
+  FEEDBACK_RECORDED
+  NEXT_ROUND_SCHEDULED
+  CLOSED_OFFER
+  CLOSED_REJECTED
+}
+
+// §10 Messaging Lifecycle
+enum MessageStatus {
+  CREATED
+  DELIVERED
+  READ
+  REPLIED
+  CLOSED
+}
+
+enum MessageChannel {
+  PLATFORM_CHAT
+  EMAIL
+}
+
+enum NotificationType {
+  APPLICATION_SUBMITTED
+  APPROVAL_REQUIRED
+  INTERVIEW_SCHEDULED
+  WEEKLY_REPORT_READY
+  FOLLOW_UP_DUE
+}
+
+// Org Membership status (05-domain-model.md — Seat entity)
+enum SeatStatus {
+  INVITED
+  ACTIVE
+  REMOVED
+}
+
+enum OrganizationType {
+  UNIVERSITY
+  EMPLOYER
+  OTHER
+}
+
+// ---------------------------------------------------------------------------
+// Organization / Seat — schema only for Phase 1 (no UI/purchase flow yet;
+// Org Admin portal is Phase 3). Present now because Customer.organizationId
+// is part of the documented Customer entity itself.
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id             String           @id @default(cuid())
+  name           String
+  type           OrganizationType
+  billingContact String
+  invoiceTerms   String?
+  seatsPurchased Int              @default(0)
+  seatsUsed      Int              @default(0)
+  status         String           @default("ACTIVE")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  seats     Seat[]
+  customers Customer[]
+  admins    User[]     @relation("OrgAdmins")
+
+  @@map("organizations")
+}
+
+model Seat {
+  id             String     @id @default(cuid())
+  organizationId String
+  customerId     String?    @unique
+  invitedEmail   String
+  invitedDate    DateTime   @default(now())
+  status         SeatStatus @default(INVITED)
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  customer     Customer?    @relation(fields: [customerId], references: [id])
+
+  @@map("seats")
+}
+
+// ---------------------------------------------------------------------------
+// User / Customer / Profile
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String     @id @default(cuid())
+  clerkId      String     @unique
+  firstName    String
+  lastName     String
+  email        String     @unique
+  phone        String?
+  role         UserRole
+  profilePhoto String?
+  status       UserStatus @default(ACTIVE)
+  timeZone     String?
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  // Org Admin only
+  organizationId String?
+  organization   Organization? @relation("OrgAdmins", fields: [organizationId], references: [id])
+
+  customer                Customer?      @relation("UserCustomer")
+  notifications           Notification[]
+  sentMessages            Message[]      @relation("MessageSender")
+  activities              ActivityLog[]
+  assignedAsManager       Customer[]     @relation("AssignedManager")
+  assignedAsAssociate     Customer[]     @relation("AssignedAssociate")
+  assignedTasks           Task[]         @relation("TaskAssignee")
+  documentsUploaded       Document[]     @relation("DocumentUploadedBy")
+  applicationsAsAssociate Application[]  @relation("ApplicationAssociate")
+  applicationsAsManager   Application[]  @relation("ApplicationManager")
+
+  @@map("users")
+}
+
+model Customer {
+  id             String @id @default(cuid())
+  userId         String @unique
+  customerNumber String @unique @default(cuid())
+
+  status          CustomerStatus @default(LEAD)
+  onboardingStage String? // free-text checklist marker within Onboarding Workflow (§2)
+
+  assignedManagerId   String?
+  assignedAssociateId String?
+
+  activeServicePlanTier Int? // 1-4, or null for custom/enterprise — see 01-business pricing table
+  approvalMode          ApprovalMode @default(MODE_B_AUTO_SUBMIT)
+
+  organizationId       String?
+  renewalDate          DateTime?
+  subscriptionStatus   String? // mirrors Stripe subscription status
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user              User          @relation("UserCustomer", fields: [userId], references: [id])
+  assignedManager   User?         @relation("AssignedManager", fields: [assignedManagerId], references: [id])
+  assignedAssociate User?         @relation("AssignedAssociate", fields: [assignedAssociateId], references: [id])
+  organization      Organization? @relation(fields: [organizationId], references: [id])
+
+  profile        CustomerProfile?
+  seat           Seat?
+  services       Service[]
+  resumeVersions ResumeVersion[]
+  documents      Document[]
+  applications   Application[]
+  tasks          Task[]           @relation("TaskRelatedCustomer")
+  interviews     Interview[]
+  messages       Message[]        @relation("MessageRelatedCustomer")
+
+  @@map("customers")
+}
+
+model CustomerProfile {
+  id         String @id @default(cuid())
+  customerId String @unique
+
+  headline        String?
+  summary         String?
+  yearsExperience Int?
+  currentPosition String?
+  currentEmployer String?
+
+  targetRoles         String[]
+  preferredIndustries String[]
+  preferredLocations  String[]
+  remotePreference    String?
+  salaryRangeMin      Int?
+  salaryRangeMax      Int?
+
+  workAuthCountry     String?
+  visaType            String?
+  visaExpiration      DateTime?
+  sponsorshipRequired Boolean   @default(false)
+
+  linkedin        String?
+  github          String?
+  portfolio       String?
+  personalWebsite String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@map("customer_profiles")
+}
+
+// ---------------------------------------------------------------------------
+// Service / Workspace — only Job Application Operations exists in Phase 1;
+// modeled as its own entity per 05-domain-model.md so future services
+// (Resume Optimization, Networking, Coaching) attach without a rewrite.
+// ---------------------------------------------------------------------------
+
+model Service {
+  id         String @id @default(cuid())
+  customerId String
+  type       String @default("JOB_APPLICATION_OPERATIONS")
+  status     String @default("ACTIVE")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  workspaces Workspace[]
+
+  @@map("services")
+}
+
+model Workspace {
+  id        String @id @default(cuid())
+  serviceId String
+  type      String @default("JOB_APPLICATION_OPERATIONS")
+
+  createdAt DateTime @default(now())
+
+  service Service @relation(fields: [serviceId], references: [id])
+
+  @@map("workspaces")
+}
+
+// ---------------------------------------------------------------------------
+// Company / Job
+// ---------------------------------------------------------------------------
+
+model Company {
+  id           String  @id @default(cuid())
+  name         String
+  industry     String?
+  size         String?
+  headquarters String?
+  website      String?
+  atsPlatform  String?
+  notes        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jobs       Job[]
+  interviews Interview[]
+
+  @@map("companies")
+}
+
+model Job {
+  id             String    @id @default(cuid())
+  companyId      String
+  position       String
+  location       String?
+  employmentType String?
+  salary         String?
+  remoteStatus   String?
+  jobUrl         String?
+  source         String?
+  postingDate    DateTime?
+  closingDate    DateTime?
+  aiMatchScore   Int?
+  status         JobStatus @default(DISCOVERED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  applications Application[]
+
+  @@map("jobs")
+}
+
+// ---------------------------------------------------------------------------
+// Resume Library — versions are superseded, never overwritten
+// (05-domain-model.md, 06-05-document-management-system.md)
+// ---------------------------------------------------------------------------
+
+model ResumeVersion {
+  id                  String         @id @default(cuid())
+  customerId          String
+  targetRoleArchetype String?
+  industry            String?
+  keywords            String[]
+  skillsEmphasized    String[]
+  fileUrl             String
+  isMaster            Boolean        @default(false)
+  status              DocumentStatus @default(UPLOADED)
+  lastUsedAt          DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  applications Application[]
+
+  @@map("resume_versions")
+}
+
+// ---------------------------------------------------------------------------
+// Document (cover letters, portfolios, LinkedIn exports, other)
+// ---------------------------------------------------------------------------
+
+model Document {
+  id                String         @id @default(cuid())
+  customerId        String
+  type              DocumentType
+  name              String
+  description       String?
+  fileUrl           String
+  fileType          String?
+  fileSize          Int?
+  storageLocation   String         @default("vercel-blob")
+  createdById       String?
+  uploadedById      String?
+  ownerId           String?
+  isCurrentVersion  Boolean        @default(true)
+  versionNumber     Int            @default(1)
+  previousVersionId String?        @unique
+  status            DocumentStatus @default(UPLOADED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer        Customer  @relation(fields: [customerId], references: [id])
+  uploadedBy      User?     @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
+  previousVersion Document? @relation("DocumentVersionHistory", fields: [previousVersionId], references: [id])
+  nextVersion     Document? @relation("DocumentVersionHistory")
+
+  coverLetterForApplications Application[] @relation("ApplicationCoverLetter")
+  portfolioForApplications   Application[] @relation("ApplicationPortfolio")
+
+  accessLogs DocumentAccessLog[]
+
+  @@map("documents")
+}
+
+model DocumentAccessLog {
+  id         String   @id @default(cuid())
+  documentId String
+  userId     String?
+  action     String // VIEW / DOWNLOAD / UPLOAD
+  at         DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id])
+
+  @@map("document_access_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Application — the core entity (05-domain-model.md, 04-customer-journey §4)
+// ---------------------------------------------------------------------------
+
+model Application {
+  id         String @id @default(cuid())
+  customerId String
+  jobId      String
+
+  assignedAssociateId String?
+  assignedManagerId   String?
+
+  resumeVersionId String?
+  coverLetterId   String?
+  portfolioId     String?
+
+  status ApplicationStatus @default(IDENTIFIED)
+
+  approvalMode     ApprovalMode   @default(MODE_B_AUTO_SUBMIT) // copied from customer default at creation time
+  approvalStatus   ApprovalStatus @default(NOT_REQUIRED)
+  customerComments String?
+  approvalDate     DateTime?
+
+  // Submission — recorded identically whether performed manually (Phase 1)
+  // or later by the Automation Engine (Phase 4), per 06-04-application-management-system.md
+  submissionTimestamp DateTime?
+  submissionPlatform  String?
+  confirmationNumber  String?
+  submittedById       String?
+
+  interviewReceived Boolean @default(false)
+  offerReceived     Boolean @default(false)
+  rejected          Boolean @default(false)
+  closingReason     String?
+
+  qualityScore Int? // single AI-generated figure, manager-reviewable/overridable
+  aiMatchScore Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer          Customer       @relation(fields: [customerId], references: [id])
+  job               Job            @relation(fields: [jobId], references: [id])
+  assignedAssociate User?          @relation("ApplicationAssociate", fields: [assignedAssociateId], references: [id])
+  assignedManager   User?          @relation("ApplicationManager", fields: [assignedManagerId], references: [id])
+  resumeVersion     ResumeVersion? @relation(fields: [resumeVersionId], references: [id])
+  coverLetter       Document?      @relation("ApplicationCoverLetter", fields: [coverLetterId], references: [id])
+  portfolio         Document?      @relation("ApplicationPortfolio", fields: [portfolioId], references: [id])
+
+  tasks      Task[]
+  interviews Interview[]
+  messages   Message[]
+
+  @@map("applications")
+}
+
+// ---------------------------------------------------------------------------
+// Task
+// ---------------------------------------------------------------------------
+
+model Task {
+  id               String       @id @default(cuid())
+  assignedToId     String
+  type             TaskType
+  priority         TaskPriority @default(MEDIUM)
+  dueDate          DateTime?
+  status           TaskStatus   @default(CREATED)
+  estimatedMinutes Int?
+  actualMinutes    Int?
+
+  relatedCustomerId    String?
+  relatedApplicationId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedTo         User         @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  relatedCustomer    Customer?    @relation("TaskRelatedCustomer", fields: [relatedCustomerId], references: [id])
+  relatedApplication Application? @relation(fields: [relatedApplicationId], references: [id])
+
+  @@map("tasks")
+}
+
+// ---------------------------------------------------------------------------
+// Interview
+// ---------------------------------------------------------------------------
+
+model Interview {
+  id            String          @id @default(cuid())
+  applicationId String?
+  customerId    String
+  companyId     String?
+  role          String?
+  round         String?
+  scheduledAt   DateTime?
+  interviewType String?
+  interviewer   String?
+  feedback      String?
+  outcome       String?
+  nextAction    String?
+  status        InterviewStatus @default(SCHEDULED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  application Application? @relation(fields: [applicationId], references: [id])
+  customer    Customer     @relation(fields: [customerId], references: [id])
+  company     Company?     @relation(fields: [companyId], references: [id])
+
+  @@map("interviews")
+}
+
+// ---------------------------------------------------------------------------
+// Message / Notification
+// ---------------------------------------------------------------------------
+
+model Message {
+  id                   String         @id @default(cuid())
+  senderId             String
+  channel              MessageChannel @default(PLATFORM_CHAT)
+  content              String
+  attachmentUrl        String?
+  relatedCustomerId    String
+  relatedApplicationId String?
+  status               MessageStatus  @default(DELIVERED)
+
+  createdAt DateTime @default(now())
+
+  sender             User         @relation("MessageSender", fields: [senderId], references: [id])
+  relatedCustomer    Customer     @relation("MessageRelatedCustomer", fields: [relatedCustomerId], references: [id])
+  relatedApplication Application? @relation(fields: [relatedApplicationId], references: [id])
+
+  @@map("messages")
+}
+
+model Notification {
+  id      String           @id @default(cuid())
+  userId  String
+  type    NotificationType
+  content String
+  read    Boolean          @default(false)
+  channel String           @default("IN_APP")
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+// ---------------------------------------------------------------------------
+// Activity Log — the audit backbone (05-domain-model.md, 08-security)
+// Every significant state transition writes exactly one row here, in the
+// same transaction as the transition itself.
+// ---------------------------------------------------------------------------
+
+model ActivityLog {
+  id            String   @id @default(cuid())
+  timestamp     DateTime @default(now())
+  userId        String? // null for SYSTEM-attributed actions (e.g. collapsed self-serve funnel)
+  actorLabel    String   @default("SYSTEM")
+  action        String
+  entityType    String
+  entityId      String
+  previousState String?
+  newState      String?
+  notes         String?
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@map("activity_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Platform Settings — small key/value table; used for the admin
+// "pause new signups" safety valve (see plan §5).
+// ---------------------------------------------------------------------------
+
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_settings")
+}
