@@ -25,6 +25,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      - name: Dependency audit (production, fail on critical; known Prisma CLI advisory documented in README)
+        run: npm audit --omit=dev --audit-level=critical
 
   secrets:
     runs-on: ubuntu-latest
