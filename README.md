@@ -117,4 +117,4 @@ What's covered: the approval rules, approve and request-changes (including refus
 
 ---
 
-Built by [Karthik Bhumireddy](https://github.com/karthy1004), product owner and builder, with Claude Code as an AI pair programmer.
+Built by [Karthik Bhumireddy](https://github.com/karthikbhumireddy), product owner and builder, with Claude Code as an AI pair programmer.
