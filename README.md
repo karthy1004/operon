@@ -107,6 +107,7 @@ What's covered: the approval rules, approve and request-changes (including refus
 - Authorization: customers can act only on applications they own (`getOwnedApplicationOrThrow`).
 - Secrets live only in `.env` (git-ignored, never committed; history checked). CI scans with gitleaks.
 - Payments: Stripe-hosted Checkout, so no card data touches this app.
+- Dependencies: `npm audit --omit=dev` (October 2026) reports one remaining high-severity advisory chain, `deepmerge-ts` < 8 via `@prisma/config` → `prisma`. It is reached only through the Prisma CLI, an optional peer of `@prisma/client`, not the request path. The fix requires Prisma 7, a major upgrade that is deliberately deferred.
 
 ## Roadmap (next three)
 
