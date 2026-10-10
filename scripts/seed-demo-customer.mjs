@@ -1,4 +1,5 @@
-// Seeds a fully-populated demo Customer for prototype/demo purposes —
+// Seeds a fully-populated demo Customer for prototype/demo purposes (all
+// companies and outcomes are fictional) —
 // bypasses Stripe entirely. The user must already exist locally (sign up,
 // then visit /welcome once so the Clerk->User lazy-sync fires) before
 // running this.
@@ -30,12 +31,12 @@ if (existing) {
 }
 
 const companies = [
-  { name: "Stripe", industry: "Fintech" },
-  { name: "Notion", industry: "SaaS" },
-  { name: "Anthropic", industry: "AI" },
-  { name: "Figma", industry: "Design Tools" },
-  { name: "Ramp", industry: "Fintech" },
-  { name: "Linear", industry: "Dev Tools" },
+  { name: "Northwind Payments", industry: "Fintech" },
+  { name: "Paperleaf", industry: "SaaS" },
+  { name: "Lumen Labs", industry: "AI" },
+  { name: "Canvasly", industry: "Design Tools" },
+  { name: "Ledgerline", industry: "Fintech" },
+  { name: "Trackwise", industry: "Dev Tools" },
 ];
 
 const companyRecords = {};
@@ -91,42 +92,42 @@ const resumeGrowth = await prisma.resumeVersion.create({
 
 const jobs = [
   {
-    company: "Stripe",
+    company: "Northwind Payments",
     position: "Senior Product Manager",
     status: "SUBMITTED",
     resume: resumeFintech,
     matchScore: 91,
   },
   {
-    company: "Notion",
+    company: "Paperleaf",
     position: "PM, Growth",
     status: "INTERVIEW",
     resume: resumeGrowth,
     matchScore: 87,
   },
   {
-    company: "Anthropic",
+    company: "Lumen Labs",
     position: "Product Manager",
     status: "WAITING_APPROVAL",
     resume: resumeFintech,
     matchScore: 84,
   },
   {
-    company: "Ramp",
+    company: "Ledgerline",
     position: "Senior PM, Payments",
     status: "WAITING_APPROVAL",
     resume: resumeFintech,
     matchScore: 88,
   },
   {
-    company: "Figma",
+    company: "Canvasly",
     position: "Product Manager",
     status: "OFFER",
     resume: resumeGrowth,
     matchScore: 93,
   },
   {
-    company: "Linear",
+    company: "Trackwise",
     position: "Product Manager",
     status: "REJECTED",
     resume: resumeGrowth,

@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import type { CustomerStatus } from "@prisma/client";
+import type { CustomerStatus, Prisma } from "@prisma/client";
 
 /**
  * The canonical Customer Lifecycle (04-customer-journey §1) assumes a
@@ -10,7 +10,7 @@ import type { CustomerStatus } from "@prisma/client";
  * every intermediate state is still written to the Activity Log, just
  * completed atomically by the system instead of by a human.
  */
-const COLLAPSED_FUNNEL_STATES: CustomerStatus[] = [
+export const COLLAPSED_FUNNEL_STATES: CustomerStatus[] = [
   "LEAD",
   "QUALIFIED_LEAD",
   "DISCOVERY_CALL_SCHEDULED",
@@ -22,52 +22,57 @@ const COLLAPSED_FUNNEL_STATES: CustomerStatus[] = [
   "ACCOUNT_CREATED",
 ];
 
-export async function completeSelfServeSignup(params: {
+type SignupParams = {
   userId: string;
   tier: number;
   stripeCustomerId: string;
   stripeSubscriptionId: string;
-}) {
+};
+
+export async function completeSelfServeSignup(params: SignupParams) {
+  return prisma.$transaction((tx) => completeSelfServeSignupTx(tx, params));
+}
+
+/** Same as completeSelfServeSignup, inside a caller-owned transaction. */
+export async function completeSelfServeSignupTx(tx: Prisma.TransactionClient, params: SignupParams) {
   const { userId, tier, stripeCustomerId, stripeSubscriptionId } = params;
 
-  return prisma.$transaction(async (tx) => {
-    const existing = await tx.customer.findUnique({ where: { userId } });
-    if (existing) return existing; // idempotent — webhook may retry/replay
+  const existing = await tx.customer.findUnique({ where: { userId } });
+  if (existing) return existing; // idempotent — webhook may retry/replay
 
-    const customer = await tx.customer.create({
+  const customer = await tx.customer.create({
+    data: {
+      userId,
+      status: "ACCOUNT_CREATED",
+      activeServicePlanTier: tier,
+      approvalMode: "MODE_B_AUTO_SUBMIT",
+      subscriptionStatus: "active",
+      stripeCustomerId,
+      stripeSubscriptionId,
+    },
+  });
+
+  let previousState: string | null = null;
+  for (const state of COLLAPSED_FUNNEL_STATES) {
+    await tx.activityLog.create({
       data: {
-        userId,
-        status: "ACCOUNT_CREATED",
-        activeServicePlanTier: tier,
-        approvalMode: "MODE_B_AUTO_SUBMIT",
-        subscriptionStatus: "active",
-        stripeCustomerId,
-        stripeSubscriptionId,
+        userId: null,
+        actorLabel: "SYSTEM",
+        action: "CUSTOMER_STATUS_TRANSITION",
+        entityType: "Customer",
+        entityId: customer.id,
+        previousState,
+        newState: state,
+        notes:
+          state === "ACCOUNT_CREATED"
+            ? "Self-serve checkout completed via Stripe (Phase 1 collapsed funnel)"
+            : null,
       },
     });
+    previousState = state;
+  }
 
-    let previousState: string | null = null;
-    for (const state of COLLAPSED_FUNNEL_STATES) {
-      await tx.activityLog.create({
-        data: {
-          userId: null,
-          actorLabel: "SYSTEM",
-          action: "CUSTOMER_STATUS_TRANSITION",
-          entityType: "Customer",
-          entityId: customer.id,
-          previousState,
-          newState: state,
-          notes:
-            state === "ACCOUNT_CREATED"
-              ? "Self-serve checkout completed via Stripe (Phase 1 collapsed funnel)"
-              : null,
-        },
-      });
-      previousState = state;
-    }
-
-    return customer;
-  });
+  return customer;
 }
 
 export async function isSignupsPaused(): Promise<boolean> {

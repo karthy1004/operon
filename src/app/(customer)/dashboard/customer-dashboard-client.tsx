@@ -8,11 +8,9 @@ import {
   FileText,
   CheckSquare,
   FolderOpen,
-  ChevronRight,
   Check,
   Pencil,
   X,
-  Clock,
   Sparkles,
   User,
 } from "lucide-react";
