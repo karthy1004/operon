@@ -63,6 +63,17 @@ stateDiagram-v2
 
 Only the two customer transitions are implemented in code today. The others are modelled states for the team workflow.
 
+## Product notes: who it's for, how I'd measure it, what I cut
+
+| | |
+|---|---|
+| **Primary user** | A senior professional running a job search alongside a full-time job. They want the volume of a recruiter's pipeline without losing control of what is sent in their name. |
+| **The bet** | People do the work and the candidate keeps a veto. That's slower than an auto-apply bot, and should produce better applications and more trust. |
+| **North-star metric (proposed)** | Interviews per 100 applications submitted. |
+| **Supporting metrics (proposed)** | Share of applications approved on first review (a preparation-quality signal). Customer approval turnaround time. Time to first interview. Cost to serve per application, because this is a service business. Renewal rate after the first month. |
+| **Prioritisation calls** | Self-serve checkout before sales tooling (ADR-0001). Only Tier 1 priced. A signups-paused switch built early, because capacity is the binding constraint of a service. Mode B auto-submit is modelled but not built until approval data shows customers want it. |
+| **Status** | Prototype. No customers, so none of these metrics have values. |
+
 ## Key decisions
 
 | Decision | Why | Record |
